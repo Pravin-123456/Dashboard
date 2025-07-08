@@ -1,168 +1,120 @@
+React Query CRUD with Separate Hooks (GET, POST, PUT, DELETE)
+=============================================================
 
-React Query + Axios – Custom Hook with CRUD & switch-case
+✅ Why this pattern?
+Instead of using one hook with a switch-case, we define four clean and isolated hooks for each CRUD operation.
 
-────────────────────────────────────────────────────────────
-✅ GOAL: One unified hook `useApi()` that performs:
-  - GET → useQuery
-  - POST, PUT, DELETE → useMutation
-  - Uses `switch-case` internally
-  - Returns relevant states (loading, error, response)
-
-────────────────────────────────────────────────────────────
-📁 Folder structure:
+-------------------------------------------------------------
+Folder Structure:
+-------------------------------------------------------------
 src/
 ├── api/
 │   ├── axios.js
-│   ├── get.js
-│   ├── post.js
-│   ├── put.js
-│   ├── delete.js
-│   └── useApi.js
+│   ├── useGet.js
+│   ├── usePost.js
+│   ├── usePut.js
+│   ├── useDelete.js
 
-────────────────────────────────────────────────────────────
-📄 1. axios.js
+-------------------------------------------------------------
+1. axios.js
+-------------------------------------------------------------
 import axios from "axios";
 
 export const axiosInstance = axios.create({
   baseURL: "https://jsonplaceholder.typicode.com",
-  headers: {
-    "Content-Type": "application/json",
-  },
+  headers: { "Content-Type": "application/json" },
 });
 
-────────────────────────────────────────────────────────────
-📄 2. get.js
+-------------------------------------------------------------
+2. useGet.js
+-------------------------------------------------------------
 import { useQuery } from "@tanstack/react-query";
 import { axiosInstance } from "./axios";
 
-export const useGetData = (queryKey, url) =>
+export const useGet = (queryKey, url, options = {}) =>
   useQuery({
     queryKey: [queryKey],
     queryFn: async () => {
       const res = await axiosInstance.get(url);
       return res.data;
     },
-    staleTime: 1000 * 60 * 5,
+    ...options,
   });
 
-────────────────────────────────────────────────────────────
-📄 3. post.js
+-------------------------------------------------------------
+3. usePost.js
+-------------------------------------------------------------
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { axiosInstance } from "./axios";
 
-export const usePostData = () => {
+export const usePost = (onSuccessCallback) => {
   const queryClient = useQueryClient();
+
   return useMutation({
     mutationFn: async ({ url, data }) => {
       const res = await axiosInstance.post(url, data);
       return res.data;
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       queryClient.invalidateQueries();
+      if (onSuccessCallback) onSuccessCallback(data);
     },
   });
 };
 
-────────────────────────────────────────────────────────────
-📄 4. put.js
+-------------------------------------------------------------
+4. usePut.js
+-------------------------------------------------------------
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { axiosInstance } from "./axios";
 
-export const usePutData = () => {
+export const usePut = (onSuccessCallback) => {
   const queryClient = useQueryClient();
+
   return useMutation({
     mutationFn: async ({ url, data }) => {
       const res = await axiosInstance.put(url, data);
       return res.data;
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       queryClient.invalidateQueries();
+      if (onSuccessCallback) onSuccessCallback(data);
     },
   });
 };
 
-────────────────────────────────────────────────────────────
-📄 5. delete.js
+-------------------------------------------------------------
+5. useDelete.js
+-------------------------------------------------------------
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { axiosInstance } from "./axios";
 
-export const useDeleteData = () => {
+export const useDelete = (onSuccessCallback) => {
   const queryClient = useQueryClient();
+
   return useMutation({
     mutationFn: async (url) => {
       const res = await axiosInstance.delete(url);
       return res.data;
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       queryClient.invalidateQueries();
+      if (onSuccessCallback) onSuccessCallback(data);
     },
   });
 };
 
-────────────────────────────────────────────────────────────
-📄 6. useApi.js – Custom Hook with switch-case
+-------------------------------------------------------------
+✅ Why we didn't use useCallback
+-------------------------------------------------------------
+- `useCallback` is used to memoize functions between renders.
+- React Query’s `mutate` function is already optimized and doesn’t need to be wrapped in `useCallback`.
+- However, if you're passing the `mutate` function or handlers to child components, then yes, `useCallback` can be used in the component (not in the hook itself).
 
-import { useGetData } from "./get";
-import { usePostData } from "./post";
-import { usePutData } from "./put";
-import { useDeleteData } from "./delete";
-
-export const useApi = ({ method, url, queryKey }) => {
-  switch (method.toLowerCase()) {
-    case "get":
-      return useGetData(queryKey, url);
-    case "post":
-      return usePostData();
-    case "put":
-      return usePutData();
-    case "delete":
-      return useDeleteData();
-    default:
-      throw new Error(`Unsupported method: ${method}`);
-  }
-};
-
-────────────────────────────────────────────────────────────
-✅ Example: How to Use in Component
-
-import { useApi } from "../api/useApi";
-
-const Users = () => {
-  const { data, isLoading, error } = useApi({
-    method: "get",
-    url: "/users",
-    queryKey: "users",
-  });
-
-  const post = useApi({ method: "post" });
-  const put = useApi({ method: "put" });
-  const del = useApi({ method: "delete" });
-
-  const handleAdd = () => {
-    post.mutate({ url: "/users", data: { name: "New User" } });
-  };
-
-  const handleUpdate = () => {
-    put.mutate({ url: "/users/1", data: { name: "Updated User" } });
-  };
-
-  const handleDelete = () => {
-    del.mutate("/users/1");
-  };
-
-  return (
-    <>
-      <button onClick={handleAdd}>Add</button>
-      <button onClick={handleUpdate}>Update</button>
-      <button onClick={handleDelete}>Delete</button>
-
-      {isLoading && <p>Loading...</p>}
-      {error && <p>{error.message}</p>}
-      {data && <pre>{JSON.stringify(data, null, 2)}</pre>}
-    </>
-  );
-};
-
-────────────────────────────────────────────────────────────
-This approach cleanly separates logic, supports all CRUD ops,
-and leverages TanStack Query for optimal performance.
+-------------------------------------------------------------
+✅ Summary
+-------------------------------------------------------------
+- Separation of concerns
+- Cleaner and maintainable code
+- Easier debugging and extension
+- Ideal for TypeScript and larger teams
