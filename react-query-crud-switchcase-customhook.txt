@@ -1,0 +1,168 @@
+
+React Query + Axios – Custom Hook with CRUD & switch-case
+
+────────────────────────────────────────────────────────────
+✅ GOAL: One unified hook `useApi()` that performs:
+  - GET → useQuery
+  - POST, PUT, DELETE → useMutation
+  - Uses `switch-case` internally
+  - Returns relevant states (loading, error, response)
+
+────────────────────────────────────────────────────────────
+📁 Folder structure:
+src/
+├── api/
+│   ├── axios.js
+│   ├── get.js
+│   ├── post.js
+│   ├── put.js
+│   ├── delete.js
+│   └── useApi.js
+
+────────────────────────────────────────────────────────────
+📄 1. axios.js
+import axios from "axios";
+
+export const axiosInstance = axios.create({
+  baseURL: "https://jsonplaceholder.typicode.com",
+  headers: {
+    "Content-Type": "application/json",
+  },
+});
+
+────────────────────────────────────────────────────────────
+📄 2. get.js
+import { useQuery } from "@tanstack/react-query";
+import { axiosInstance } from "./axios";
+
+export const useGetData = (queryKey, url) =>
+  useQuery({
+    queryKey: [queryKey],
+    queryFn: async () => {
+      const res = await axiosInstance.get(url);
+      return res.data;
+    },
+    staleTime: 1000 * 60 * 5,
+  });
+
+────────────────────────────────────────────────────────────
+📄 3. post.js
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { axiosInstance } from "./axios";
+
+export const usePostData = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ url, data }) => {
+      const res = await axiosInstance.post(url, data);
+      return res.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries();
+    },
+  });
+};
+
+────────────────────────────────────────────────────────────
+📄 4. put.js
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { axiosInstance } from "./axios";
+
+export const usePutData = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ url, data }) => {
+      const res = await axiosInstance.put(url, data);
+      return res.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries();
+    },
+  });
+};
+
+────────────────────────────────────────────────────────────
+📄 5. delete.js
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { axiosInstance } from "./axios";
+
+export const useDeleteData = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (url) => {
+      const res = await axiosInstance.delete(url);
+      return res.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries();
+    },
+  });
+};
+
+────────────────────────────────────────────────────────────
+📄 6. useApi.js – Custom Hook with switch-case
+
+import { useGetData } from "./get";
+import { usePostData } from "./post";
+import { usePutData } from "./put";
+import { useDeleteData } from "./delete";
+
+export const useApi = ({ method, url, queryKey }) => {
+  switch (method.toLowerCase()) {
+    case "get":
+      return useGetData(queryKey, url);
+    case "post":
+      return usePostData();
+    case "put":
+      return usePutData();
+    case "delete":
+      return useDeleteData();
+    default:
+      throw new Error(`Unsupported method: ${method}`);
+  }
+};
+
+────────────────────────────────────────────────────────────
+✅ Example: How to Use in Component
+
+import { useApi } from "../api/useApi";
+
+const Users = () => {
+  const { data, isLoading, error } = useApi({
+    method: "get",
+    url: "/users",
+    queryKey: "users",
+  });
+
+  const post = useApi({ method: "post" });
+  const put = useApi({ method: "put" });
+  const del = useApi({ method: "delete" });
+
+  const handleAdd = () => {
+    post.mutate({ url: "/users", data: { name: "New User" } });
+  };
+
+  const handleUpdate = () => {
+    put.mutate({ url: "/users/1", data: { name: "Updated User" } });
+  };
+
+  const handleDelete = () => {
+    del.mutate("/users/1");
+  };
+
+  return (
+    <>
+      <button onClick={handleAdd}>Add</button>
+      <button onClick={handleUpdate}>Update</button>
+      <button onClick={handleDelete}>Delete</button>
+
+      {isLoading && <p>Loading...</p>}
+      {error && <p>{error.message}</p>}
+      {data && <pre>{JSON.stringify(data, null, 2)}</pre>}
+    </>
+  );
+};
+
+────────────────────────────────────────────────────────────
+This approach cleanly separates logic, supports all CRUD ops,
+and leverages TanStack Query for optimal performance.
